@@ -1,56 +1,92 @@
 import ReactDOM from "react-dom";
-import React from "react";
+import { React, useEffect, useRef, useState, useLayoutEffect } from "react";
+import List from "./list";
+import { getFirestore } from "redux-firestore";
+import members from "./data/members";
+import fbConfig from "./config/fbconfig";
+import rootReducer from "./store/reducers/rootReducer";
+import { compose, createStore } from "redux";
+import { reduxFirestore } from "redux-firestore";
+import { Provider } from "react-redux";
 
-class TODO extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { list: [], text: "" };
-    this.handleChange = this.handleChange.bind(this);
-    this.handleSubmit = this.handleSubmit.bind(this);
-  }
+const store = createStore(rootReducer, compose(reduxFirestore(fbConfig)));
+function Todo() {
+  const [list, setList] = useState([]);
+  const [text, setText] = useState("");
+  const [memberID, setMemberID] = useState(0);
+  const firstUpdate = useRef(true);
 
-  handleChange = (e) => {
-    console.log("change");
-    this.setState({ text: e.target.value });
+  useEffect(async () => {
+    const firestore = getFirestore();
+    const data = await firestore
+      .collection("groceries-list")
+      .doc("groceries")
+      .get();
+    setList(data.data().items);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (firstUpdate.current) {
+      firstUpdate.current = false;
+      return;
+    }
+    const firestore = getFirestore();
+    firestore
+      .collection("groceries-list")
+      .doc("groceries")
+      .set({
+        items: list,
+      })
+      .then(() => {
+        console.log("updated");
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  });
+
+  const handleChange = (e) => {
+    console.log(e.target.value);
+    setText(e.target.value);
   };
 
-  handleSubmit = (e) => {
-    console.log("submit");
-    if (this.state.text.length < 1) {
+  const handleMember = (e) => {
+    setMemberID(e.target.selectedIndex);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    if (text.length < 1) {
       alert("something needs to be added!");
     } else {
-      this.setState({
-        list: this.state.list.concat({
-          text: this.state.text,
-          id: this.state.list.length,
-        }),
-        text: "",
-      });
+      setList([...list, { text: text, id: list.length, memberID: memberID }]);
+      setText("");
     }
-    e.preventDefault();
   };
 
-  render() {
-    return (
-      <div>
-        <h1>Welcome to TODO</h1>
-        {this.state.list.length} items are there in the list
-        <ol>
-          {this.state.list.map((i) => (
-            <li key={i.id}>{i.text}</li>
+  return (
+    <div>
+      <h1>410</h1>
+      <form onSubmit={(e) => handleSubmit(e)}>
+        get
+        <input type="text" onChange={(e) => handleChange(e)} value={text} />
+        for
+        <select name="member" onChange={(e) => handleMember(e)}>
+          {members.members.map((member) => (
+            <option key={member.id}>{member.name}</option>
           ))}
-        </ol>
-        <form onSubmit={this.handleSubmit}>
-          <input
-            type="text"
-            onChange={this.handleChange}
-            value={this.state.text}
-          />
-          <button type="submit">Add</button>
-        </form>
-      </div>
-    );
-  }
+        </select>
+        <button type="submit">Add</button>
+      </form>
+      {List({ list, setList })}
+    </div>
+  );
 }
 
-ReactDOM.render(<TODO />, document.getElementById("root"));
+ReactDOM.render(
+  <Provider store={store}>
+    <Todo />
+  </Provider>,
+  document.getElementById("root")
+);
